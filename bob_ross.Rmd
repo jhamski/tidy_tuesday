@@ -1,0 +1,80 @@
+---
+title: "Bob Ross Tidy Tuesday Analysis"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(broom)
+```
+
+# Clustering Bob Ross's paining elements using MONothetic Analysis Clustering of Binary Variables
+
+# Data Import, Cleaning, and Formatting
+```{r}
+bob_ross <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-06/bob-ross.csv")
+```
+
+```{r}
+elements <- bob_ross %>%
+  select(-EPISODE, -TITLE) %>%
+  # there's one element, 'lakes', that only 1 is observed -
+  # apparently there's a lake in every paining.
+  # this causes an error when using mona, so make sure each column is a factor
+  # with both 0 and 1 accounted for.
+  mutate_all(.funs = factor, levels = c(0, 1)) 
+
+
+```
+
+# Clustering using MONothetic Analysis Clustering of Binary Variables
+```{r}
+elements_cluster <- mona(elements)
+```
+
+The mona clustering returns 10 clusters. 
+
+```{r}
+table(element_cluster$clustering)
+```
+
+Unfortunately I don't think the broom library can extract the model data produced by the mona clustering.
+```{r}
+broom::tidy(element_cluster)
+```
+
+```{r}
+names(element_cluster)
+```
+
+# Visualization
+
+Let's take a look at how some of the elements, currently stored as column names, occur within these clusters. 
+
+```{r}
+bob_ross$cluster = element_cluster$clustering
+
+element_occurrence_tidy <- bob_ross %>%
+  gather(element, occurrence, -EPISODE, -TITLE, -cluster) %>%
+  filter(occurrence == 1) %>%
+  mutate(cluster = as.factor(cluster))
+
+element_occurrence_count <- element_occurrence_tidy %>%
+  group_by(cluster, element) %>%
+  tally() %>%
+  arrange(desc(cluster), desc(n))
+
+element_occurrence_count %>%
+  group_by(cluster) %>%
+  top_n(5, n) %>%
+  ggplot(aes(x = fct_reorder(element, n), y = n, fill = cluster)) + 
+  geom_bar(stat = "identity") +
+  facet_wrap(~cluster, scales = "free", ncol = 2) +
+  coord_flip()
+```
+
+```{r}
+clusplot(elements, element_cluster$clustering, main = 'Cusplot')
+```
+
